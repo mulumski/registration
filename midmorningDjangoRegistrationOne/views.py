@@ -1,3 +1,10 @@
+from __future__ import unicode_literals
+from django_daraja.mpesa import utils
+from django.http import HttpResponse, JsonResponse
+from django.views import View
+from django_daraja.mpesa.core import MpesaClient
+from decouple import config
+from datetime import datetime
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from .forms import UserRegistrationForm
@@ -94,8 +101,30 @@ def update_product(request,id):
         messages.success(request, 'Product updated successfully')
         return redirect('products')
     return render(request, 'update_product.html', {'product':product})
+#Instantiate the Mpesa client
+cl = MpesaClient()
+#set up callbacks
+stk_callback_url = "https;//api.darajambili.com/express-payment"
+b2c_callback_url = "https://api.darajambili.com/b2c/result"
 
+
+#Generate the transaction auth_token
+def auth_success(request):
+    token = cl.access_token()
+    return JsonResponse(token, safe=False)
 @login_required
 def payment(request,id):
     product = Product.objects.get(id=id)
-    return render(request, 'payment.html', {'product' : product})
+    if request.method == "POST":
+        phone_number = request.POST.get('nambari')
+        amount = request.POST.get('bei')
+        #convert amount into integer'
+        amount = int(amount)
+        account_ref = 'mulumba'
+        transaction_desc = 'paying for a product'
+        transaction = cl.stk_push(phone_number, amount, account_ref, transaction_desc,
+                                  stk_callback_url)
+        return JsonResponse(transaction.response_description, safe=False)
+    return render(request, 'payment.html', {'product':product})
+
+
